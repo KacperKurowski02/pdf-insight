@@ -65,17 +65,24 @@ function json(body: unknown, status: number, env: Env, origin: string | null): R
 const memoryBuckets = new Map<string, { count: number; resetAt: number }>();
 
 async function isRateLimited(ip: string, env: Env): Promise<boolean> {
-  const key = `rl:${ip}`;
+  // Okno o stalej dlugosci: numer okna jest czescia klucza, wiec licznik zeruje sie
+  // sam co godzine. Gdyby kluczem bylo samo IP, a TTL odswiezal sie przy kazdym
+  // zapisie, okno przesuwaloby sie w nieskonczonosc i uzytkownik, ktory przekroczyl
+  // limit i probuje dalej, nigdy by sie z niego nie wydostal.
+  const window = Math.floor(Date.now() / (WINDOW_SECONDS * 1000));
+  const key = `rl:${ip}:${window}`;
 
   if (env.RATE_LIMIT) {
     const current = Number((await env.RATE_LIMIT.get(key)) ?? '0');
     if (current >= RATE_LIMIT_PER_HOUR) {
       return true;
     }
-    await env.RATE_LIMIT.put(key, String(current + 1), { expirationTtl: WINDOW_SECONDS });
+    // TTL z zapasem, zeby klucz zniknal po zamknieciu swojego okna.
+    await env.RATE_LIMIT.put(key, String(current + 1), { expirationTtl: WINDOW_SECONDS * 2 });
     return false;
   }
 
+  // Bez KV licznik zyje w pamieci pojedynczego izolatu — awaryjnie, nie docelowo.
   const now = Date.now();
   const bucket = memoryBuckets.get(key);
   if (!bucket || bucket.resetAt < now) {

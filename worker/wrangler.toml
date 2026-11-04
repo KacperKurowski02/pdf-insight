@@ -11,9 +11,10 @@ MODEL = "gemini-2.5-flash"
 # Klucz API NIE trafia tutaj. Ustaw go poleceniem:
 #   npx wrangler secret put GEMINI_API_KEY
 
-# Opcjonalny globalny limit zadan (bez niego limit dziala per izolat):
-#   npx wrangler kv namespace create RATE_LIMIT
-# a nastepnie odkomentuj ponizsze i wklej wygenerowane id.
-# [[kv_namespaces]]
-# binding = "RATE_LIMIT"
-# id = "<id-z-polecenia-powyzej>"
+# Magazyn KV dla limitu zadan. Bez niego licznik zyje w pamieci pojedynczego
+# izolatu Workera, wiec przy ruchu z wielu lokalizacji limit jest w praktyce
+# luzniejszy, niz wynika z konfiguracji. KV daje licznik wspolny dla calej krawedzi.
+# Utworzony poleceniem: npx wrangler kv namespace create RATE_LIMIT
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "35a9193e49254e19bc7e800470d32e46"
