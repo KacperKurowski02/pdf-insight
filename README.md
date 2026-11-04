@@ -85,6 +85,10 @@ npm run typecheck
 - **Limit żądań bez KV działa w obrębie jednego izolatu Workera.** Produkcyjnie należy podpiąć namespace KV (instrukcja w `worker/wrangler.toml`).
 - **Jakość danych zależy od modelu.** Walidacja schematem wyłapuje błędy struktury, nie błędy merytoryczne.
 - Historia analiz jest zapisywana lokalnie w przeglądarce i nie synchronizuje się między urządzeniami.
+- **Jeden dozwolony origin.** Worker porównuje nagłówek `Origin` z jedną wartością `ALLOWED_ORIGIN`,
+  więc praca lokalna na `http://localhost:5173` wymaga tymczasowej podmiany tej linii w
+  `worker/wrangler.toml` i ponownego `wrangler deploy`. Świadome uproszczenie — lista dozwolonych
+  origin byłaby tu nadmiarowa, ale przy większym projekcie to pierwsza rzecz do zmiany.
 
 ## Struktura
 
