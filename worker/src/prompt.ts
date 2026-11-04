@@ -21,6 +21,12 @@ ZASADY ANALIZY:
 - Wszystkie daty w formacie ISO 8601 (RRRR-MM-DD). Jesli dokument podaje tylko miesiac lub rok, pomin te date.
 - Wszystkie waluty jako kody ISO 4217 (PLN, EUR, USD).
 - Kwoty jako liczby, bez separatorow tysiecy i bez symboli walut.
+- Do tablicy amounts trafiaja WYLACZNIE wartosci pieniezne zapisane w dokumencie wraz z waluta.
+- NIGDY nie zamieniaj wartosci procentowej na kwote. "zaliczka 30%" albo "obnizenie o 30%" to
+  nie jest kwota 30 — takiej pozycji w ogole nie umieszczaj w amounts. Jesli procent jest istotny,
+  opisz go slowami w keyPoints albo w summary.
+- W amounts umieszczaj wartosci istotne dla zrozumienia dokumentu (wynagrodzenia, abonamenty,
+  kary, limity, kluczowe stawki). Nie przepisuj calych cennikow pozycja po pozycji.
 - Klucze JSON po angielsku, wartosci w jezyku dokumentu.
 - summary: 3-5 pelnych zdan w jezyku dokumentu.
 - keyPoints: od 3 do 7 pozycji.
