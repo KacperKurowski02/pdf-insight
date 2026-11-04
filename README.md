@@ -2,10 +2,9 @@
 
 Aplikacja webowa, która wczytuje plik PDF, tworzy jego krótkie podsumowanie i zamienia treść w uporządkowane dane JSON.
 
-- **Demo:** https://kacperkurowski02.github.io/pdf-insight/
-- **Zrzut ekranu:** `docs/screenshot.png`
+**Demo:** https://kacperkurowski02.github.io/pdf-insight/
 
-> TODO przed oddaniem: podmień adres demo na własny i dodaj zrzut ekranu.
+![PDF Insight — wynik analizy z wykrytą próbą prompt injection](docs/screenshot.png)
 
 ## Jak to działa
 
