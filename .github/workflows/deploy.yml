@@ -10,9 +10,11 @@ permissions:
   pages: write
   id-token: write
 
+# Pages nie znosi anulowania wdrozenia w trakcie — przerwane wdrozenie zawisa
+# po stronie GitHuba i blokuje kolejne. Kolejkujemy zamiast anulowac.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # Kolejnosc z briefu: lint > build > deploy (z dolozonym typecheck i testami).
