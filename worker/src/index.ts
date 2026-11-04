@@ -87,6 +87,12 @@ async function callModel(env: Env, userMessage: string): Promise<string> {
       generationConfig: {
         temperature: 0.1,
         responseMimeType: 'application/json',
+        // Dokument na kilkanascie stron daje dluga odpowiedz — bez tego limitu
+        // JSON bywa uciety w polowie i nie przechodzi walidacji.
+        maxOutputTokens: 8192,
+        // Modele "myslace" zuzywaja budzet odpowiedzi na rozumowanie. Przy zadaniu
+        // ekstrakcji danych nie jest ono potrzebne, a wydluza czas odpowiedzi.
+        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
   });
@@ -96,11 +102,25 @@ async function callModel(env: Env, userMessage: string): Promise<string> {
   }
 
   const payload = (await response.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    candidates?: {
+      finishReason?: string;
+      content?: { parts?: { text?: string; thought?: boolean }[] };
+    }[];
   };
-  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  const candidate = payload.candidates?.[0];
+  // Odpowiedz moze skladac sie z kilku czesci, a czesci oznaczone jako `thought`
+  // zawieraja rozumowanie modelu, nie wynik. Bierzemy wylacznie czesci wynikowe.
+  const text = (candidate?.content?.parts ?? [])
+    .filter((part) => part.thought !== true && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('');
+
   if (!text) {
-    throw new Error('Model zwrocil pusta odpowiedz.');
+    throw new Error(`Model zwrocil pusta odpowiedz (finishReason: ${candidate?.finishReason ?? 'brak'}).`);
+  }
+  if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+    throw new Error(`Odpowiedz modelu zostala przerwana (finishReason: ${candidate.finishReason}).`);
   }
   return text;
 }
