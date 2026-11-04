@@ -1,6 +1,12 @@
 import { analysisSchema, describeIssues, type Analysis } from '../lib/schema';
 
-const API_URL = import.meta.env.VITE_API_URL as string | undefined;
+/**
+ * Adres backendu. Zmienna srodowiskowa ma pierwszenstwo (praca lokalna, wlasny hosting),
+ * a wartosc domyslna wskazuje publicznego Workera obslugujacego demo. Adres endpointu
+ * nie jest sekretem — klucz API pozostaje wylacznie po stronie Workera.
+ */
+const DEFAULT_API_URL = 'https://pdf-insight-api.kacperkurowski.workers.dev';
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || DEFAULT_API_URL;
 
 export class AnalyzeError extends Error {}
 
@@ -15,10 +21,6 @@ async function requestModel(
   text: string,
   previousError?: string,
 ): Promise<string> {
-  if (!API_URL) {
-    throw new AnalyzeError('Brak konfiguracji VITE_API_URL. Aplikacja nie wie, gdzie wyslac zadanie.');
-  }
-
   const response = await fetch(`${API_URL.replace(/\/$/, '')}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

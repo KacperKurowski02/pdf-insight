@@ -54,10 +54,14 @@ npx wrangler deploy
 
 | Zmienna | Gdzie | Opis |
 |---|---|---|
-| `VITE_API_URL` | frontend (`.env`, w CI: zmienna repozytorium) | adres Workera, bez końcowego ukośnika |
+| `VITE_API_URL` | frontend (`.env`, w CI: zmienna repozytorium) | adres Workera, bez końcowego ukośnika; opcjonalna — nadpisuje wartość domyślną |
 | `GEMINI_API_KEY` | Worker (sekret) | klucz API modelu — nigdy w repozytorium |
 | `ALLOWED_ORIGIN` | Worker (`wrangler.toml`) | domena demo dla CORS |
 | `MODEL` | Worker (`wrangler.toml`) | nazwa modelu, domyślnie `gemini-2.5-flash` |
+
+Adres Workera ma w kodzie wartość domyślną (`src/api/analyze.ts`), więc demo działa bez dodatkowej
+konfiguracji. `VITE_API_URL` nadpisuje ją przy pracy lokalnej albo własnym wdrożeniu. Adres endpointu
+nie jest sekretem — klucz API pozostaje po stronie Workera, w sekretach Cloudflare.
 
 W GitHub Actions ustaw `VITE_API_URL` jako **zmienną repozytorium** (Settings → Secrets and variables → Actions → Variables). Nie jest to sekret — to publiczny adres endpointu.
 
