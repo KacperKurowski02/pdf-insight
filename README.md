@@ -38,6 +38,18 @@ a pozycje nieczytelne pomija zgodnie z zasadą „brak informacji = null lub []"
 równie rygorystyczny — zmienia się tylko to, co do niego trafia. Bez tej warstwy kilka źle
 sformatowanych dat wywracało analizę całego dokumentu.
 
+**Długie dokumenty (F-08).** Tekst powyżej 50 000 znaków jest dzielony na fragmenty z zakładką,
+a granice cięcia ustawiane są na końcu akapitu lub zdania. Każdy fragment analizowany jest osobno,
+po czym encje, kwoty, daty i słowa kluczowe scalane są deterministycznie, z deduplikacją
+(`src/lib/merge.ts`). Podsumowanie i punkty kluczowe powstają w dodatkowym przebiegu modelu na
+połączonych streszczeniach cząstkowych — proste sklejenie dałoby zlepek zdań, a nie streszczenie
+całości. Typ dokumentu ustalany jest większością głosów fragmentów.
+
+**OCR (F-10).** Dokument bez warstwy tekstowej nie kończy się błędem: strony są renderowane na
+canvas i rozpoznawane przez tesseract.js w języku polskim i angielskim. Biblioteka ładowana jest
+dynamicznie, więc zwykły dokument nie pobiera ani jej, ani danych językowych — główna paczka rośnie
+o 6 kB zamiast o kilka megabajtów.
+
 **Pole `securityNotice`** zostało dodane do schematu. Brief pozwala dodawać pola, zabrania usuwać.
 
 ## Uruchomienie lokalne
@@ -61,7 +73,7 @@ npx wrangler deploy
 |---|---|---|
 | `VITE_API_URL` | frontend (`.env`, w CI: zmienna repozytorium) | adres Workera, bez końcowego ukośnika; opcjonalna — nadpisuje wartość domyślną |
 | `GEMINI_API_KEY` | Worker (sekret) | klucz API modelu — nigdy w repozytorium |
-| `ALLOWED_ORIGIN` | Worker (`wrangler.toml`) | domena demo dla CORS |
+| `ALLOWED_ORIGINS` | Worker (`wrangler.toml`) | dozwolone origin dla CORS, rozdzielone przecinkami |
 | `MODEL` | Worker (`wrangler.toml`) | nazwa modelu, domyślnie `gemini-2.5-flash` |
 
 Adres Workera ma w kodzie wartość domyślną (`src/api/analyze.ts`), więc demo działa bez dodatkowej
@@ -73,22 +85,24 @@ W GitHub Actions ustaw `VITE_API_URL` jako **zmienną repozytorium** (Settings �
 ## Testy
 
 ```bash
-npm test        # walidacja schematu i normalizacja dat (Vitest, 22 testy)
+npm test        # schemat, normalizacja dat, podział i scalanie (Vitest, 35 testów)
 npm run lint
 npm run typecheck
 ```
 
 ## Znane ograniczenia
 
-- **Brak OCR.** Skany bez warstwy tekstowej są odrzucane z czytelnym komunikatem (F-10 to punkt COULD).
-- **Brak dzielenia bardzo długich dokumentów.** Limit to ok. 400 000 znaków tekstu; powyżej tej wartości backend odrzuca żądanie.
-- **Limit żądań bez KV działa w obrębie jednego izolatu Workera.** Produkcyjnie należy podpiąć namespace KV (instrukcja w `worker/wrangler.toml`).
-- **Jakość danych zależy od modelu.** Walidacja schematem wyłapuje błędy struktury, nie błędy merytoryczne.
-- Historia analiz jest zapisywana lokalnie w przeglądarce i nie synchronizuje się między urządzeniami.
-- **Jeden dozwolony origin.** Worker porównuje nagłówek `Origin` z jedną wartością `ALLOWED_ORIGIN`,
-  więc praca lokalna na `http://localhost:5173` wymaga tymczasowej podmiany tej linii w
-  `worker/wrangler.toml` i ponownego `wrangler deploy`. Świadome uproszczenie — lista dozwolonych
-  origin byłaby tu nadmiarowa, ale przy większym projekcie to pierwsza rzecz do zmiany.
+- **OCR obejmuje pierwsze 10 stron skanu.** Rozpoznanie jednej strony trwa kilka sekund,
+  więc pełny OCR wielostronicowego dokumentu przekroczyłby rozsądny czas oczekiwania.
+  Limit jest stałą `MAX_OCR_PAGES` w `src/lib/ocr.ts`.
+- **OCR pobiera dane językowe z CDN przy pierwszym użyciu.** Kilka megabajtów, jednorazowo
+  na przeglądarkę. Dokument z warstwą tekstową nigdy ich nie ściąga.
+- **Twardy limit długości dokumentu to ok. 400 000 znaków.** Powyżej backend odrzuca żądanie —
+  dzielenie na fragmenty działa poniżej tej granicy.
+- **Jakość danych zależy od modelu.** Walidacja schematem wyłapuje błędy struktury, nie błędy
+  merytoryczne.
+- Historia analiz jest zapisywana lokalnie w przeglądarce i nie synchronizuje się między
+  urządzeniami.
 
 ## Struktura
 
@@ -96,7 +110,7 @@ npm run typecheck
 src/
   api/         komunikacja z backendem i walidacja odpowiedzi
   components/  komponenty interfejsu
-  lib/         schemat Zod, pdf.js, detektor injection, historia
+  lib/         schemat Zod, pdf.js, OCR, detektor injection, podział i scalanie, historia
 worker/
   src/         Cloudflare Worker: prompt i proxy do API modelu
 ```

@@ -87,13 +87,16 @@ Schemat pozostał rygorystyczny.
 **5. `tsconfig.tsbuildinfo` poza `.gitignore`.** Artefakt builda trafiłby do repozytorium.
 Dodany wzorzec `*.tsbuildinfo`.
 
-**6. Origin produkcyjny kontra testy lokalne.** Worker przyjmuje jeden origin, więc
-`npm run dev` na `localhost:5173` jest blokowany przez CORS, dopóki nie podmieni się tej
-jednej linii. Świadome uproszczenie — opisane w README w znanych ograniczeniach.
+**6. Origin produkcyjny kontra testy lokalne.** Pierwsza wersja Workera przyjmowała jeden
+origin, więc `npm run dev` na `localhost:5173` był blokowany przez CORS do czasu podmiany tej
+linii w `wrangler.toml`. Model zaproponował to jako „świadome uproszczenie" i wpisał do znanych
+ograniczeń — przy przeglądzie uznałem, że to raczej wygodna wymówka niż decyzja projektowa.
+Zastąpione listą `ALLOWED_ORIGINS`; nagłówek `Access-Control-Allow-Origin` przyjmuje dokładnie
+jedną wartość, więc Worker odbija origin żądania, jeśli jest na liście.
 
 ## Co zweryfikowałem samodzielnie
 
-- `npm run lint`, `npm run typecheck`, `npm test` (22 testy) i `npm run build` — wszystko
+- `npm run lint`, `npm run typecheck`, `npm test` (35 testów) i `npm run build` — wszystko
   przechodzi na czysto.
 - Detektor injection przepuszczony przez tekst wyciągnięty z pliku testowego: trafiają
   3 z 8 wzorców (`zignoruj wszystkie wcześniejsze polecenia`, `INSTRUKCJA DLA SYSTEMU AI`,

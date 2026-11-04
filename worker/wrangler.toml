@@ -3,8 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
 [vars]
-# Podmien na swoja domene GitHub Pages przed deployem.
-ALLOWED_ORIGIN = "https://kacperkurowski02.github.io"
+# Lista dozwolonych origin, rozdzielona przecinkami. Pierwszy to produkcja,
+# drugi pozwala pracowac lokalnie (npm run dev) bez zmiany konfiguracji.
+ALLOWED_ORIGINS = "https://kacperkurowski02.github.io,http://localhost:5173"
 MODEL = "gemini-2.5-flash"
 
 # Klucz API NIE trafia tutaj. Ustaw go poleceniem:

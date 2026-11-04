@@ -10,6 +10,9 @@ export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export class PdfError extends Error {}
 
+/** Dokument bez warstwy tekstowej — wolajacy moze sprobowac OCR (F-10). */
+export class NoTextLayerError extends PdfError {}
+
 export interface ExtractedPdf {
   text: string;
   pages: number;
@@ -55,9 +58,7 @@ export async function extractPdfText(
 
     const text = chunks.join('\n\n').replace(/[ \t]+/g, ' ').trim();
     if (text.length < 30) {
-      throw new PdfError(
-        'Ten PDF nie zawiera warstwy tekstowej (prawdopodobnie skan). OCR nie jest obslugiwany.',
-      );
+      throw new NoTextLayerError('Ten PDF nie zawiera warstwy tekstowej (prawdopodobnie skan).');
     }
     return { text, pages: doc.numPages };
   } finally {

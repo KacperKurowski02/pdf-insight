@@ -3,7 +3,8 @@ import { Dropzone } from './components/Dropzone';
 import { ResultView } from './components/ResultView';
 import { EmptyView, ErrorView, LoadingView } from './components/States';
 import { analyzeDocument } from './api/analyze';
-import { PdfError, extractPdfText, validatePdfFile } from './lib/pdf';
+import { NoTextLayerError, PdfError, extractPdfText, validatePdfFile } from './lib/pdf';
+import { MAX_OCR_PAGES, extractTextWithOcr } from './lib/ocr';
 import { scanForInjection } from './lib/injection';
 import { clearHistory, loadHistory, saveToHistory, type HistoryEntry } from './lib/history';
 import type { Analysis } from './lib/schema';
@@ -16,6 +17,7 @@ export default function App(): JSX.Element {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [excerpts, setExcerpts] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [ocrNotice, setOcrNotice] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [lastFile, setLastFile] = useState<File | null>(null);
 
@@ -27,21 +29,50 @@ export default function App(): JSX.Element {
     setLastFile(file);
     setStatus('loading');
     setErrorMessage('');
+    setOcrNotice(null);
 
     try {
       setProgress('Sprawdzanie pliku…');
       await validatePdfFile(file);
 
       setProgress('Odczytywanie tekstu…');
-      const { text, pages } = await extractPdfText(file, (done, total) => {
-        setProgress(`Odczytywanie tekstu… strona ${done} z ${total}`);
-      });
+      let text: string;
+      let pages: number;
+
+      try {
+        const extracted = await extractPdfText(file, (done, total) => {
+          setProgress(`Odczytywanie tekstu… strona ${done} z ${total}`);
+        });
+        text = extracted.text;
+        pages = extracted.pages;
+      } catch (error) {
+        if (!(error instanceof NoTextLayerError)) {
+          throw error;
+        }
+        // Skan bez warstwy tekstowej — probujemy OCR (F-10). Biblioteka wczytuje
+        // sie dopiero tutaj, wiec zwykly dokument nigdy jej nie pobiera.
+        setProgress('Brak warstwy tekstowej — uruchamiam OCR, to potrwa dluzej…');
+        const ocr = await extractTextWithOcr(file, (page, total) => {
+          setProgress(`Rozpoznawanie tekstu (OCR)… strona ${page} z ${total}`);
+        });
+        text = ocr.text;
+        pages = ocr.pages;
+        setOcrNotice(
+          ocr.pages > MAX_OCR_PAGES
+            ? `Dokument rozpoznano przez OCR. Przetworzono pierwsze ${MAX_OCR_PAGES} z ${ocr.pages} stron.`
+            : 'Dokument nie zawierał warstwy tekstowej — treść odczytano przez OCR.',
+        );
+      }
 
       const scan = scanForInjection(text);
       setExcerpts(scan.excerpts);
 
       setProgress('Analiza dokumentu…');
-      const result = await analyzeDocument(file.name, pages, text);
+      const result = await analyzeDocument(file.name, pages, text, (done, total) => {
+        setProgress(
+          total > 1 ? `Analiza dokumentu… część ${done} z ${total}` : 'Analiza dokumentu…',
+        );
+      });
 
       setAnalysis(result);
       setHistory(saveToHistory(result));
@@ -84,7 +115,7 @@ export default function App(): JSX.Element {
       {status === 'loading' && <LoadingView label={progress || 'Pracuje…'} />}
       {status === 'error' && <ErrorView message={errorMessage} onRetry={retry} />}
       {status === 'done' && analysis && (
-        <ResultView analysis={analysis} injectionExcerpts={excerpts} />
+        <ResultView analysis={analysis} injectionExcerpts={excerpts} ocrNotice={ocrNotice} />
       )}
 
       {history.length > 0 && (
@@ -99,6 +130,7 @@ export default function App(): JSX.Element {
                   onClick={() => {
                     setAnalysis(entry.analysis);
                     setExcerpts([]);
+                    setOcrNotice(null);
                     setStatus('done');
                   }}
                 >

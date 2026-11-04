@@ -4,13 +4,15 @@ import type { Analysis } from '../lib/schema';
 interface ResultViewProps {
   analysis: Analysis;
   injectionExcerpts: string[];
+  /** Komunikat o uzyciu OCR, gdy dokument nie mial warstwy tekstowej. */
+  ocrNotice?: string | null;
 }
 
 function formatAmount(value: number, currency: string): string {
   return new Intl.NumberFormat('pl-PL', { style: 'currency', currency }).format(value);
 }
 
-export function ResultView({ analysis, injectionExcerpts }: ResultViewProps): JSX.Element {
+export function ResultView({ analysis, injectionExcerpts, ocrNotice }: ResultViewProps): JSX.Element {
   const [showJson, setShowJson] = useState(false);
   const json = useMemo(() => JSON.stringify(analysis, null, 2), [analysis]);
 
@@ -28,6 +30,12 @@ export function ResultView({ analysis, injectionExcerpts }: ResultViewProps): JS
 
   return (
     <section className="result" aria-live="polite">
+      {ocrNotice && (
+        <p className="alert alert--info" role="status">
+          {ocrNotice}
+        </p>
+      )}
+
       {warned && (
         <div className="alert alert--warning" role="alert">
           <strong>Wykryto probe manipulacji modelem.</strong>

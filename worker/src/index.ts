@@ -10,8 +10,8 @@ import { SYSTEM_PROMPT, buildUserMessage } from './prompt';
 export interface Env {
   /** wrangler secret put GEMINI_API_KEY */
   GEMINI_API_KEY: string;
-  /** Domena demo, np. https://kacperkurowski02.github.io */
-  ALLOWED_ORIGIN: string;
+  /** Lista dozwolonych origin, rozdzielona przecinkami. */
+  ALLOWED_ORIGINS: string;
   /** Opcjonalny model; domyslnie gemini-2.5-flash. */
   MODEL?: string;
   /** Opcjonalny KV do limitowania zadan. Bez niego limit dziala per izolat. */
@@ -31,9 +31,22 @@ interface AnalyzeRequest {
   previousError?: unknown;
 }
 
-function corsHeaders(env: Env): Record<string, string> {
+function allowedOrigins(env: Env): string[] {
+  return env.ALLOWED_ORIGINS.split(',')
+    .map((o) => o.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * Naglowek Access-Control-Allow-Origin przyjmuje dokladnie jedna wartosc, nie liste,
+ * wiec odbijamy origin zadania, jesli jest na liscie. `Vary: Origin` informuje
+ * posrednie cache, ze odpowiedz zalezy od tego naglowka.
+ */
+function corsHeaders(env: Env, origin: string | null): Record<string, string> {
+  const allowed = allowedOrigins(env);
+  const match = origin && allowed.includes(origin.toLowerCase()) ? origin : (allowed[0] ?? '');
   return {
-    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN,
+    'Access-Control-Allow-Origin': match,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
@@ -41,10 +54,10 @@ function corsHeaders(env: Env): Record<string, string> {
   };
 }
 
-function json(body: unknown, status: number, env: Env): Response {
+function json(body: unknown, status: number, env: Env, origin: string | null): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders(env) },
+    headers: { 'Content-Type': 'application/json', ...corsHeaders(env, origin) },
   });
 }
 
@@ -129,52 +142,53 @@ async function callModel(env: Env, userMessage: string): Promise<string> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const origin = request.headers.get('Origin');
+
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(env) });
+      return new Response(null, { status: 204, headers: corsHeaders(env, origin) });
     }
 
     // Przegladarka zawsze wysyla Origin, wiec zadanie z obcej domeny odpada tutaj.
     // Zadania bez naglowka Origin (curl, testy) przepuszczamy swiadomie — CORS chroni
     // przed wykorzystaniem endpointu przez cudza strone, nie jest mechanizmem
     // uwierzytelniania. Przed nadmiernym uzyciem broni limit zadan ponizej.
-    const origin = request.headers.get('Origin');
-    if (origin && origin !== env.ALLOWED_ORIGIN) {
-      return json({ error: 'Niedozwolone zrodlo zadania.' }, 403, env);
+    if (origin && !allowedOrigins(env).includes(origin.toLowerCase())) {
+      return json({ error: 'Niedozwolone zrodlo zadania.' }, 403, env, origin);
     }
 
     if (request.method !== 'POST' || new URL(request.url).pathname !== '/analyze') {
-      return json({ error: 'Nieznany endpoint.' }, 404, env);
+      return json({ error: 'Nieznany endpoint.' }, 404, env, origin);
     }
 
     const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
     if (await isRateLimited(ip, env)) {
-      return json({ error: 'Przekroczono limit zadan. Sprobuj za godzine.' }, 429, env);
+      return json({ error: 'Przekroczono limit zadan. Sprobuj za godzine.' }, 429, env, origin);
     }
 
     // Odrzucamy nadmiarowe zadanie PRZED wczytaniem tresci do pamieci.
     const declaredLength = Number(request.headers.get('Content-Length') ?? '0');
     if (declaredLength > MAX_BODY_BYTES) {
-      return json({ error: 'Zadanie jest zbyt duze.' }, 413, env);
+      return json({ error: 'Zadanie jest zbyt duze.' }, 413, env, origin);
     }
 
     let body: AnalyzeRequest;
     try {
       body = (await request.json()) as AnalyzeRequest;
     } catch {
-      return json({ error: 'Nieprawidlowe zadanie.' }, 400, env);
+      return json({ error: 'Nieprawidlowe zadanie.' }, 400, env, origin);
     }
 
     const { fileName, pages, text, previousError } = body;
     if (typeof fileName !== 'string' || typeof text !== 'string' || typeof pages !== 'number') {
-      return json({ error: 'Brak wymaganych pol zadania.' }, 400, env);
+      return json({ error: 'Brak wymaganych pol zadania.' }, 400, env, origin);
     }
     // Liczba stron pochodzi z pdf.js, ale backend nie ufa temu, co przyszlo z sieci.
     if (!Number.isInteger(pages) || pages < 1 || pages > MAX_PAGES) {
-      return json({ error: 'Nieprawidlowa liczba stron dokumentu.' }, 400, env);
+      return json({ error: 'Nieprawidlowa liczba stron dokumentu.' }, 400, env, origin);
     }
     // Limit rozmiaru takze po stronie backendu — walidacja we froncie jest do obejscia.
     if (text.length > MAX_TEXT_CHARS) {
-      return json({ error: 'Dokument jest zbyt dlugi do analizy.' }, 413, env);
+      return json({ error: 'Dokument jest zbyt dlugi do analizy.' }, 413, env, origin);
     }
 
     const userMessage = buildUserMessage({
@@ -186,10 +200,10 @@ export default {
 
     try {
       const raw = await callModel(env, userMessage);
-      return json({ raw }, 200, env);
+      return json({ raw }, 200, env, origin);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nieznany blad analizy.';
-      return json({ error: message }, 502, env);
+      return json({ error: message }, 502, env, origin);
     }
   },
 };

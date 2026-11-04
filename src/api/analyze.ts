@@ -1,5 +1,6 @@
 import { analysisSchema, describeIssues, type Analysis } from '../lib/schema';
 import { normalizeAnalysis } from '../lib/normalize';
+import { CHUNK_CHARS, mergeAnalyses, splitText } from '../lib/merge';
 
 /**
  * Adres backendu. Zmienna srodowiskowa ma pierwszenstwo (praca lokalna, wlasny hosting),
@@ -44,11 +45,11 @@ function stripFence(raw: string): string {
 }
 
 /**
- * Analizuje dokument i waliduje odpowiedz schematem (F-04).
+ * Analizuje jeden fragment tekstu i waliduje odpowiedz schematem (F-04).
  * Przy niepoprawnej odpowiedzi wykonuje DOKLADNIE jedna ponowna probe,
  * przekazujac modelowi bledy walidacji — tak wymaga sekcja 04 briefu.
  */
-export async function analyzeDocument(
+async function analyzeChunk(
   fileName: string,
   pages: number,
   text: string,
@@ -78,3 +79,44 @@ export async function analyzeDocument(
     `Model nie zwrocil danych zgodnych ze schematem. Szczegoly: ${previousError ?? 'brak'}`,
   );
 }
+
+export interface AnalyzeProgress {
+  (done: number, total: number): void;
+}
+
+/**
+ * Analizuje dokument (F-08).
+ *
+ * Krotki tekst idzie w jednym zapytaniu. Dluzszy jest dzielony na fragmenty
+ * z zakladka: kazdy analizowany osobno (faza "map"), a nastepnie encje, kwoty,
+ * daty i slowa kluczowe scalane deterministycznie. Podsumowanie i punkty
+ * kluczowe powstaja w dodatkowym przebiegu modelu na polaczonych podsumowaniach
+ * czastkowych — inaczej byloby to zlepkiem zdan, a nie streszczeniem calosci.
+ */
+export async function analyzeDocument(
+  fileName: string,
+  pages: number,
+  text: string,
+  onProgress?: AnalyzeProgress,
+): Promise<Analysis> {
+  const chunks = splitText(text);
+
+  if (chunks.length === 1) {
+    onProgress?.(1, 1);
+    return analyzeChunk(fileName, pages, text);
+  }
+
+  const parts: Analysis[] = [];
+  for (const [index, chunk] of chunks.entries()) {
+    onProgress?.(index + 1, chunks.length + 1);
+    parts.push(await analyzeChunk(fileName, pages, chunk));
+  }
+
+  onProgress?.(chunks.length + 1, chunks.length + 1);
+  const digest = parts.map((p, i) => `Fragment ${i + 1}: ${p.summary}`).join('\n\n');
+  const reduced = await analyzeChunk(fileName, pages, digest);
+
+  return mergeAnalyses(parts, reduced.summary, reduced.keyPoints);
+}
+
+export { CHUNK_CHARS };
