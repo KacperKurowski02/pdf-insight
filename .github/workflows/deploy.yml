@@ -59,3 +59,8 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # Domyslne 10 minut bywa za malo, gdy publikacja po stronie GitHub Pages
+          # zwalnia — przekroczenie limitu zostawia wdrozenie zawieszone i blokuje
+          # kolejne. 20 minut daje zapas bez wplywu na normalny przebieg.
+          timeout: 1200000
