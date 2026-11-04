@@ -59,21 +59,41 @@ wartość brzmiała `https://KacperKurowski02.github.io`. Przeglądarka wysyła 
 i produkcja zwracałaby błąd CORS. Poprawione na `https://kacperkurowski02.github.io`.
 Błąd, który przeszedłby przez lint, typecheck i testy — wyszedłby dopiero na żywym demo.
 
-**2. Nazwa modelu podana z pamięci.** Pierwsza wersja miała na sztywno `gemini-2.5-flash`.
-Nazwy modeli zmieniają się szybciej niż wiedza modelu, więc sprawdziłem listę przez
-`GET /v1beta/models` i wystawiłem nazwę jako zmienną w `wrangler.toml` zamiast wpisywać
-ją w kodzie.
+**2. Nazwa modelu podana z pamięci.** Model zaproponował `gemini-2.5-flash` i sam oznaczył
+tę wartość jako niepewną — nazwy modeli zmieniają się szybciej niż jego wiedza. Zamiast
+wpisywać ją na sztywno w kodzie, wylądowała jako zmienna `MODEL` w `wrangler.toml`, więc
+ewentualna zmiana to jedna linia bez dotykania logiki. Nazwa okazała się poprawna, ale
+założenie było takie, że może nie być.
 
-**3. `tsconfig.tsbuildinfo` poza `.gitignore`.** Artefakt builda trafiłby do repozytorium.
+**3. Pierwsza część odpowiedzi modelu to rozumowanie, nie wynik.** Worker czytał
+`candidates[0].content.parts[0].text`. Gemini 2.5 Flash jest modelem „myślącym" i zwraca
+odpowiedź w kilku częściach — te oznaczone `thought: true` zawierają rozumowanie. Do parsera
+JSON trafiał więc tekst rozumowania i analiza kończyła się błędem „odpowiedź nie była poprawnym
+JSON-em", również po ponowieniu. Poprawka: filtrowanie części `thought`, sklejanie pozostałych,
+`thinkingConfig.thinkingBudget = 0` (przy ekstrakcji danych rozumowanie nic nie wnosi, a wydłuża
+odpowiedź) oraz `maxOutputTokens: 8192`, bo przy dwunastostronicowej umowie JSON bywał ucięty.
+Dodałem też `finishReason` do komunikatu błędu — ogólne „niepoprawny JSON" nic nie mówiło
+o przyczynie.
+
+**4. Model nie trzyma się formatu dat mimo jawnej instrukcji.** Prompt wymaga ISO 8601,
+a model zwrócił siedem z trzydziestu kilku dat w formacie `DD.MM.RRRR` albo jako niepełne
+(`RRRR-MM`). Walidacja odrzucała przez to analizę całego dokumentu. Kuszące było poluzowanie
+regexa w schemacie — zrezygnowałem, bo wtedy do interfejsu trafiałyby daty w trzech formatach
+i kontrakt JSON przestałby cokolwiek gwarantować. Zamiast tego powstała warstwa
+`src/lib/normalize.ts`: sprowadza daty do ISO przed walidacją, odrzuca nieistniejące
+(`31.02.2026`) i pomija nieczytelne, zgodnie z zasadą „brak informacji = null lub []".
+Schemat pozostał rygorystyczny.
+
+**5. `tsconfig.tsbuildinfo` poza `.gitignore`.** Artefakt builda trafiłby do repozytorium.
 Dodany wzorzec `*.tsbuildinfo`.
 
-**4. Origin produkcyjny kontra testy lokalne.** Worker przyjmuje jeden origin, więc
+**6. Origin produkcyjny kontra testy lokalne.** Worker przyjmuje jeden origin, więc
 `npm run dev` na `localhost:5173` jest blokowany przez CORS, dopóki nie podmieni się tej
 jednej linii. Świadome uproszczenie — opisane w README w znanych ograniczeniach.
 
 ## Co zweryfikowałem samodzielnie
 
-- `npm run lint`, `npm run typecheck`, `npm test` (11 testów) i `npm run build` — wszystko
+- `npm run lint`, `npm run typecheck`, `npm test` (22 testy) i `npm run build` — wszystko
   przechodzi na czysto.
 - Detektor injection przepuszczony przez tekst wyciągnięty z pliku testowego: trafiają
   3 z 8 wzorców (`zignoruj wszystkie wcześniejsze polecenia`, `INSTRUKCJA DLA SYSTEMU AI`,
