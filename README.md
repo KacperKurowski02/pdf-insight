@@ -33,6 +33,12 @@ Plik PDF **nie opuszcza przeglądarki** — parsowanie odbywa się lokalnie prze
 2. Detektor wzorców (`src/lib/injection.ts`) skanuje tekst lokalnie i zwraca podejrzane fragmenty.
 3. Model raportuje wykrytą próbę w polu `securityNotice`, a interfejs pokazuje widoczne ostrzeżenie.
 
+**Normalizacja dat.** Model zwraca część dat w formacie `DD.MM.RRRR` albo jako niepełne (`RRRR-MM`),
+mimo jawnej instrukcji w prompcie. `src/lib/normalize.ts` sprowadza je do ISO 8601 przed walidacją,
+a pozycje nieczytelne pomija zgodnie z zasadą „brak informacji = null lub []". Schemat pozostaje
+równie rygorystyczny — zmienia się tylko to, co do niego trafia. Bez tej warstwy kilka źle
+sformatowanych dat wywracało analizę całego dokumentu.
+
 **Pole `securityNotice`** zostało dodane do schematu. Brief pozwala dodawać pola, zabrania usuwać.
 
 ## Uruchomienie lokalne
@@ -68,7 +74,7 @@ W GitHub Actions ustaw `VITE_API_URL` jako **zmienną repozytorium** (Settings �
 ## Testy
 
 ```bash
-npm test        # walidacja schematu (Vitest)
+npm test        # walidacja schematu i normalizacja dat (Vitest, 22 testy)
 npm run lint
 npm run typecheck
 ```

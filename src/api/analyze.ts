@@ -1,4 +1,5 @@
 import { analysisSchema, describeIssues, type Analysis } from '../lib/schema';
+import { normalizeAnalysis } from '../lib/normalize';
 
 /**
  * Adres backendu. Zmienna srodowiskowa ma pierwszenstwo (praca lokalna, wlasny hosting),
@@ -65,7 +66,8 @@ export async function analyzeDocument(
       continue;
     }
 
-    const result = analysisSchema.safeParse(parsed);
+    // Normalizacja dat przed walidacja — szczegoly w src/lib/normalize.ts.
+    const result = analysisSchema.safeParse(normalizeAnalysis(parsed));
     if (result.success) {
       return result.data;
     }
