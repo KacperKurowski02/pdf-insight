@@ -1,0 +1,18 @@
+name = "pdf-insight-api"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+[vars]
+# Podmien na swoja domene GitHub Pages przed deployem.
+ALLOWED_ORIGIN = "https://kacperkurowski02.github.io"
+MODEL = "gemini-2.5-flash"
+
+# Klucz API NIE trafia tutaj. Ustaw go poleceniem:
+#   npx wrangler secret put GEMINI_API_KEY
+
+# Opcjonalny globalny limit zadan (bez niego limit dziala per izolat):
+#   npx wrangler kv namespace create RATE_LIMIT
+# a nastepnie odkomentuj ponizsze i wklej wygenerowane id.
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "<id-z-polecenia-powyzej>"
