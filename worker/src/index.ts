@@ -19,6 +19,8 @@ export interface Env {
 }
 
 const MAX_TEXT_CHARS = 400_000; // ~10 MB PDF-a po ekstrakcji tekstu
+const MAX_BODY_BYTES = 2_000_000; // zapas ponad MAX_TEXT_CHARS po zakodowaniu JSON
+const MAX_PAGES = 10_000;
 const RATE_LIMIT_PER_HOUR = 15;
 const WINDOW_SECONDS = 3600;
 
@@ -131,6 +133,10 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(env) });
     }
 
+    // Przegladarka zawsze wysyla Origin, wiec zadanie z obcej domeny odpada tutaj.
+    // Zadania bez naglowka Origin (curl, testy) przepuszczamy swiadomie — CORS chroni
+    // przed wykorzystaniem endpointu przez cudza strone, nie jest mechanizmem
+    // uwierzytelniania. Przed nadmiernym uzyciem broni limit zadan ponizej.
     const origin = request.headers.get('Origin');
     if (origin && origin !== env.ALLOWED_ORIGIN) {
       return json({ error: 'Niedozwolone zrodlo zadania.' }, 403, env);
@@ -145,6 +151,12 @@ export default {
       return json({ error: 'Przekroczono limit zadan. Sprobuj za godzine.' }, 429, env);
     }
 
+    // Odrzucamy nadmiarowe zadanie PRZED wczytaniem tresci do pamieci.
+    const declaredLength = Number(request.headers.get('Content-Length') ?? '0');
+    if (declaredLength > MAX_BODY_BYTES) {
+      return json({ error: 'Zadanie jest zbyt duze.' }, 413, env);
+    }
+
     let body: AnalyzeRequest;
     try {
       body = (await request.json()) as AnalyzeRequest;
@@ -155,6 +167,10 @@ export default {
     const { fileName, pages, text, previousError } = body;
     if (typeof fileName !== 'string' || typeof text !== 'string' || typeof pages !== 'number') {
       return json({ error: 'Brak wymaganych pol zadania.' }, 400, env);
+    }
+    // Liczba stron pochodzi z pdf.js, ale backend nie ufa temu, co przyszlo z sieci.
+    if (!Number.isInteger(pages) || pages < 1 || pages > MAX_PAGES) {
+      return json({ error: 'Nieprawidlowa liczba stron dokumentu.' }, 400, env);
     }
     // Limit rozmiaru takze po stronie backendu — walidacja we froncie jest do obejscia.
     if (text.length > MAX_TEXT_CHARS) {
