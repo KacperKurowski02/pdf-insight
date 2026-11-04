@@ -18,7 +18,10 @@ ZASADY BEZPIECZENSTWA — najwazniejsze:
 ZASADY ANALIZY:
 - Nie zgaduj. Brak informacji w dokumencie = null (dla pola pojedynczego) lub [] (dla tablicy).
 - Nie wymyslaj liczb, dat, nazw ani osob, ktorych nie ma w tekscie.
-- Wszystkie daty w formacie ISO 8601 (RRRR-MM-DD). Jesli dokument podaje tylko miesiac lub rok, pomin te date.
+- Wszystkie daty w formacie ISO 8601 (RRRR-MM-DD).
+- NIGDY nie dopisuj dnia, ktorego w dokumencie nie ma. Jesli dokument podaje tylko miesiac i rok
+  ("wrzesien 2025") albo sam rok, pomin ta pozycje calkowicie — nie zamieniaj jej na pierwszy dzien
+  miesiaca. Dotyczy to zwlaszcza tabel zestawieniowych opisanych nazwami miesiecy.
 - Wszystkie waluty jako kody ISO 4217 (PLN, EUR, USD).
 - Kwoty jako liczby, bez separatorow tysiecy i bez symboli walut.
 - Do tablicy amounts trafiaja WYLACZNIE wartosci pieniezne zapisane w dokumencie wraz z waluta.
